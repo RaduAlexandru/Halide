@@ -73,7 +73,7 @@ void validate_schedule_inlined_function(Function f) {
                          << f.name() << " is scheduled inline.\n";
         }
     }
-
+#if 0
     for (size_t i = 0; i < func_s.bounds().size(); i++) {
         if (func_s.bounds()[i].min.defined()) {
             user_warning << "It is meaningless to bound dimension "
@@ -89,6 +89,7 @@ void validate_schedule_inlined_function(Function f) {
                          << func_s.bounds()[i].remainder << "] because the function is scheduled inline.\n";
         }
     }
+#endif
 }
 
 class Inliner : public IRMutator2 {

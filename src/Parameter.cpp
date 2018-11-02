@@ -1,4 +1,5 @@
 #include "IR.h"
+#include "IREquality.h"
 #include "IROperator.h"
 #include "ObjectInstanceRegistry.h"
 #include "Parameter.h"
@@ -281,6 +282,100 @@ void Parameter::set_estimate(Expr e) {
 Expr Parameter::estimate() const {
     check_is_scalar();
     return contents->estimate;
+}
+
+// Add constraints to a buffer based on the storage scheduling for f.
+void Parameter::set_constraints_from_schedule(Function f) {
+    constexpr int D = 0;
+    const std::string &param_name = this->name();
+    const FuncSchedule &schedule = f.schedule();
+    const std::vector<StorageDim> &storage_dims = schedule.storage_dims();
+    const std::vector<std::string> &args = f.args();
+
+    std::vector<Expr> extents(args.size());
+    for (size_t dim = 0; dim < args.size(); dim++) {
+        extents[dim] = Variable::make(Int(32), param_name + ".extent." + std::to_string(dim), *this);
+    }
+    for (size_t dim = 0; dim < args.size(); dim++) {
+        for (const Bound &b : schedule.bounds()) {
+            if (b.var == args[dim]) {
+                Expr min = Variable::make(Int(32), param_name + ".min." + std::to_string(dim), *this);
+                if (b.min.defined()) {
+                    min = b.min;
+                }
+                if (b.extent.defined()) {
+                    extents[dim] = b.extent;
+                }
+                if (b.modulus.defined()) {
+                    Expr max_plus_one = min + extents[dim];
+                    min = (min / b.modulus) * b.modulus;
+                    max_plus_one = (max_plus_one / b.modulus) * b.modulus;
+                    // simplify() mainly to strip out constant-zero remainders and the like
+                    extents[dim] = simplify(max_plus_one - min);
+                    min = simplify(min + b.remainder);
+                }
+                // TODO: these warnings should be upgraded into errors.
+                if (min_constraint(dim).defined() && !equal(min, simplify(min_constraint(dim)))) {
+                    user_error << "Inferred value for parameter \"" << f.name() << "\" min[" << dim << "] does not match"
+                        " value explicitly specified; using the explicit value, but you should revise the schedule to"
+                        " avoid this warning. (inferred " << min << " vs explicit " << min_constraint(dim) << ")\n";
+                } else {
+                    debug(D) << "constrain_storage: setting parameter \"" << f.name() << "\" min[" << dim << "] to " << min << "\n";
+                    set_min_constraint(dim, min);
+                }
+                if (extent_constraint(dim).defined() && !equal(extents[dim], simplify(extent_constraint(dim)))) {
+                    user_error << "Inferred value for parameter \"" << f.name() << "\" extent[" << dim << "] does not match"
+                        " value explicitly specified; using the explicit value, but you should revise the schedule to"
+                        " avoid this warning. (inferred " << extents[dim] << " vs explicit " << extent_constraint(dim) << ")\n";
+                } else {
+                    debug(D) << "constrain_storage: setting parameter \"" << f.name() << "\" extent[" << dim << "] to " << extents[dim] << "\n";
+                    set_extent_constraint(dim, extents[dim]);
+                }
+                break;
+            }
+        }
+    }
+
+    Expr stride = 1;
+    for (const StorageDim &storage_dim : storage_dims) {
+        for (size_t dim = 0; dim < args.size(); dim++) {
+            if (args[dim] == storage_dim.var) {
+                if (stride.defined()) {
+                    if (storage_dim.alignment.defined()) {
+                        stride = (stride / storage_dim.alignment) / storage_dim.alignment;
+                    }
+                    Expr s = stride_constraint(dim);
+                    // Special-case stride[0]: constant-1 is the default there, so
+                    // if it is a constant 1, assume that it is OK to override
+                    // with another value; contrariwise, if it's undefined, then the user
+                    // must have explicitly set it that way.
+                    bool is_mismatched = (s.defined() && !equal(stride, simplify(s)));
+                    if (dim == 0 && is_one(s)) {
+                        is_mismatched = false;
+                    }
+                    if (is_mismatched) {
+                        user_error << "Inferred value for parameter \"" << f.name() << "\" stride[" << dim << "] does not match"
+                            " value explicitly specified; using the explicit value, but you should revise the schedule to"
+                            " avoid this warning. (inferred " << stride << " vs explicit " << s << ")\n";
+                    } else {
+                        if (dim == 0 && !s.defined()) {
+                            debug(D) << "constrain_storage: keeping parameter \"" << f.name() << "\" stride[" << dim << "] as " << s << "\n";
+                        } else {
+                            debug(D) << "constrain_storage: setting parameter \"" << f.name() << "\" stride[" << dim << "] to " << stride << "\n";
+                            set_stride_constraint(dim, stride);
+                        }
+                    }
+                    Expr extent = extents[dim];
+                    if (is_const(extent)) {
+                        stride = simplify(stride * extent);
+                    } else {
+                        stride = Expr();
+                    }
+                }
+                break;
+            }
+        }
+    }
 }
 
 void check_call_arg_types(const std::string &name, std::vector<Expr> *args, int dims) {
