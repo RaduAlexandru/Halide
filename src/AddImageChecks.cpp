@@ -201,8 +201,7 @@ Stmt add_image_checks(Stmt s,
                     buffer_name = f.name();
                     if (i > 0) {
                         is_secondary_output_buffer = true;
-                    } else {
-                        primary_output_buffer = param;
+                        primary_output_buffer = f.output_buffers()[0];
                     }
                 }
             }
@@ -456,11 +455,11 @@ Stmt add_image_checks(Stmt s,
                     // Parameter::set_constraints_from_schedule() can set the min/extent
                     // on secondary buffers, so don't complain if they are identical
                     // to the primary.
-                    const auto undef_or_equal = [](const Expr &secondary, const Expr &primary) -> bool {
+                    const auto constraint_ok = [](const Expr &secondary, const Expr &primary) -> bool {
                         return !secondary.defined() || equal(secondary, primary);
                     };
-                    user_assert(undef_or_equal(param.extent_constraint(i), primary_output_buffer.extent_constraint(i)) &&
-                                undef_or_equal(param.min_constraint(i), primary_output_buffer.min_constraint(i)))
+                    user_assert(constraint_ok(param.extent_constraint(i), primary_output_buffer.extent_constraint(i)) &&
+                                constraint_ok(param.min_constraint(i), primary_output_buffer.min_constraint(i)))
                         << "Can't constrain the min or extent of an output buffer beyond the "
                         << "first. They are implicitly constrained to have the same min and extent "
                         << "as the first output buffer.\n";

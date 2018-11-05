@@ -291,6 +291,7 @@ void Parameter::set_constraints_from_schedule(Function f) {
     const FuncSchedule &schedule = f.schedule();
     const std::vector<StorageDim> &storage_dims = schedule.storage_dims();
     const std::vector<std::string> &args = f.args();
+    std::ostringstream o;
 
     std::vector<Expr> extents(args.size());
     for (size_t dim = 0; dim < args.size(); dim++) {
@@ -320,7 +321,9 @@ void Parameter::set_constraints_from_schedule(Function f) {
                         " value explicitly specified; using the explicit value, but you should revise the schedule to"
                         " avoid this warning. (inferred " << min << " vs explicit " << min_constraint(dim) << ")\n";
                 } else {
-                    debug(D) << "constrain_storage: setting parameter \"" << f.name() << "\" min[" << dim << "] to " << min << "\n";
+                    if (debug::debug_level() >= D) {
+                        o << "  min." << dim << " -> " << min << "\n";
+                    }
                     set_min_constraint(dim, min);
                 }
                 if (extent_constraint(dim).defined() && !equal(extents[dim], simplify(extent_constraint(dim)))) {
@@ -328,7 +331,9 @@ void Parameter::set_constraints_from_schedule(Function f) {
                         " value explicitly specified; using the explicit value, but you should revise the schedule to"
                         " avoid this warning. (inferred " << extents[dim] << " vs explicit " << extent_constraint(dim) << ")\n";
                 } else {
-                    debug(D) << "constrain_storage: setting parameter \"" << f.name() << "\" extent[" << dim << "] to " << extents[dim] << "\n";
+                    if (debug::debug_level() >= D) {
+                        o << "  extents." << dim << " -> " << extents[dim] << "\n";
+                    }
                     set_extent_constraint(dim, extents[dim]);
                 }
                 break;
@@ -354,8 +359,10 @@ void Parameter::set_constraints_from_schedule(Function f) {
                             " value explicitly specified; using the explicit value, but you should revise the schedule to"
                             " avoid this warning. (inferred " << stride << " vs explicit " << s << ")\n";
                     } else {
-                        debug(D) << "constrain_storage: setting parameter \"" << f.name() << "\" stride[" << dim << "] to " << stride << " was "<<s<< "\n";
                         set_stride_constraint(dim, stride);
+                        if (debug::debug_level() >= D) {
+                            o << "  stride." << dim << " -> " << stride << " (was " << s << ")\n";
+                        }
                     }
                 }
                 Expr extent = extents[dim];
@@ -367,6 +374,10 @@ void Parameter::set_constraints_from_schedule(Function f) {
                 break;
             }
         }
+    }
+
+    if (!o.str().empty()) {
+        debug(D) << "set_constraints_from_schedule(" << f.name() << "):\n" << o.str();
     }
 }
 
