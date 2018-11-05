@@ -286,7 +286,7 @@ Expr Parameter::estimate() const {
 
 // Add constraints to a buffer based on the storage scheduling for f.
 void Parameter::set_constraints_from_schedule(Function f) {
-    constexpr int D = 0;
+    constexpr int D = 1;
     const std::string &param_name = this->name();
     const FuncSchedule &schedule = f.schedule();
     const std::vector<StorageDim> &storage_dims = schedule.storage_dims();
@@ -336,41 +336,33 @@ void Parameter::set_constraints_from_schedule(Function f) {
         }
     }
 
+    // stride[0] defaults to 1, not Expr().
+    const auto is_default = [](int dim, const Expr &e) -> bool {
+        return (dim == 0) ? is_one(e) : !e.defined();
+    };
     Expr stride = 1;
     for (const StorageDim &storage_dim : storage_dims) {
         for (size_t dim = 0; dim < args.size(); dim++) {
             if (args[dim] == storage_dim.var) {
-                if (stride.defined()) {
+                if (!is_default(dim, stride)) {
                     if (storage_dim.alignment.defined()) {
                         stride = (stride / storage_dim.alignment) / storage_dim.alignment;
                     }
                     Expr s = stride_constraint(dim);
-                    // Special-case stride[0]: constant-1 is the default there, so
-                    // if it is a constant 1, assume that it is OK to override
-                    // with another value; contrariwise, if it's undefined, then the user
-                    // must have explicitly set it that way.
-                    bool is_mismatched = (s.defined() && !equal(stride, simplify(s)));
-                    if (dim == 0 && is_one(s)) {
-                        is_mismatched = false;
-                    }
-                    if (is_mismatched) {
+                    if (!is_default(dim, s) && !equal(stride, simplify(s))) {
                         user_error << "Inferred value for parameter \"" << f.name() << "\" stride[" << dim << "] does not match"
                             " value explicitly specified; using the explicit value, but you should revise the schedule to"
                             " avoid this warning. (inferred " << stride << " vs explicit " << s << ")\n";
                     } else {
-                        if (dim == 0 && !s.defined()) {
-                            debug(D) << "constrain_storage: keeping parameter \"" << f.name() << "\" stride[" << dim << "] as " << s << "\n";
-                        } else {
-                            debug(D) << "constrain_storage: setting parameter \"" << f.name() << "\" stride[" << dim << "] to " << stride << "\n";
-                            set_stride_constraint(dim, stride);
-                        }
+                        debug(D) << "constrain_storage: setting parameter \"" << f.name() << "\" stride[" << dim << "] to " << stride << " was "<<s<< "\n";
+                        set_stride_constraint(dim, stride);
                     }
-                    Expr extent = extents[dim];
-                    if (is_const(extent)) {
-                        stride = simplify(stride * extent);
-                    } else {
-                        stride = Expr();
-                    }
+                }
+                Expr extent = extents[dim];
+                if (stride.defined() && is_const(extent)) {
+                    stride = simplify(stride * extent);
+                } else {
+                    stride = Expr();
                 }
                 break;
             }

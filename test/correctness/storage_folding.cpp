@@ -374,8 +374,8 @@ int main(int argc, char **argv) {
 
         Buffer<int> im;
         if (interleave) {
-            f.reorder(c, x, y).reorder_storage(c, x, y).bound(c, 0, 3);
-            g.reorder(c, x, y).reorder_storage(c, x, y).bound(c, 0, 3);
+            f.reorder(c, x, y).reorder_storage(c, x, y);
+            g.reorder(c, x, y).reorder_storage(c, x, y);
             im = Buffer<int>::make_interleaved(100, 1000, 3);
         } else {
             im = Buffer<int>(100, 1000, 3);
