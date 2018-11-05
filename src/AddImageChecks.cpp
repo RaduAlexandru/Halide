@@ -1,4 +1,5 @@
 #include "AddImageChecks.h"
+#include "IREquality.h"
 #include "IRVisitor.h"
 #include "Simplify.h"
 #include "Substitute.h"
@@ -189,6 +190,7 @@ Stmt add_image_checks(Stmt s,
         bool is_output_buffer = false;
         bool is_secondary_output_buffer = false;
         string buffer_name = name;
+        Parameter primary_output_buffer;
         for (Function f : outputs) {
             for (size_t i = 0; i < f.output_buffers().size(); i++) {
                 if (param.defined() &&
@@ -199,6 +201,8 @@ Stmt add_image_checks(Stmt s,
                     buffer_name = f.name();
                     if (i > 0) {
                         is_secondary_output_buffer = true;
+                    } else {
+                        primary_output_buffer = param;
                     }
                 }
             }
@@ -449,8 +453,14 @@ Stmt add_image_checks(Stmt s,
                 // constrained to match the first output.
 
                 if (param.defined()) {
-                    user_assert(!param.extent_constraint(i).defined() &&
-                                !param.min_constraint(i).defined())
+                    // Parameter::set_constraints_from_schedule() can set the min/extent
+                    // on secondary buffers, so don't complain if they are identical
+                    // to the primary.
+                    const auto undef_or_equal = [](const Expr &secondary, const Expr &primary) -> bool {
+                        return !secondary.defined() || equal(secondary, primary);
+                    };
+                    user_assert(undef_or_equal(param.extent_constraint(i), primary_output_buffer.extent_constraint(i)) &&
+                                undef_or_equal(param.min_constraint(i), primary_output_buffer.min_constraint(i)))
                         << "Can't constrain the min or extent of an output buffer beyond the "
                         << "first. They are implicitly constrained to have the same min and extent "
                         << "as the first output buffer.\n";
