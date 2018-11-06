@@ -679,6 +679,9 @@ WEAK int halide_openglcompute_run(void *user_context, void *state_ptr,
         return -1;
     }
 
+    //TODO remove this when not profiling 
+    global_state.Finish();
+
 #ifdef DEBUG_RUNTIME
     uint64_t t_after = halide_current_time_ns(user_context);
     debug(user_context) << "    Time: " << (t_after - t_before) / 1.0e6
@@ -832,7 +835,7 @@ WEAK int halide_openglcompute_initialize_kernels(void *user_context, void **stat
         const GLsizei bufSize = 64; // maximum name length
         GLchar name[bufSize]; // variable name in GLSL
         GLsizei length; // name length
-        
+
         global_state.GetProgramiv(program, GL_ACTIVE_UNIFORMS, &count);
         debug(user_context) << "Active Uniforms: " << count << "\n";
 
