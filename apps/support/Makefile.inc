@@ -12,7 +12,7 @@ ifeq ($(OS), Windows_NT)
 # Flags for mingw environment
 LDFLAGS += -lz -lole32 -lkernel32 -lpsapi -luuid -Wl,--stack,8388608
 else
-LDFLAGS += -ldl -lpthread -lz
+LDFLAGS += -ldl -lpthread -lz -ltinfo
 endif
 
 CXX ?= g++
@@ -107,4 +107,3 @@ HL_AVCONV ?= avconv
 
 # Utility to show h264 video
 HL_VIDEOPLAYER ?= mplayer
-
