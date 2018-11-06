@@ -262,69 +262,69 @@ int main(int argc, char **argv) {
         // See figures/lesson_19_transpose.mp4 for a visualization
     }
 
-    {
-        // ImageParam::in behaves the same way as Func::in, and you
-        // can use it to stage loads in similar ways. Instead of
-        // transposing again, we'll use ImageParam::in to stage tiles
-        // of an input image into GPU shared memory, effectively using
-        // shared/local memory as an explicitly-managed cache.
-
-        ImageParam img(Int(32), 2);
-
-        // We will compute a small blur of the input.
-        Func blur("blur");
-        blur(x, y) = (img(x - 1, y - 1) + img(x, y - 1) + img(x + 1, y - 1) +
-                      img(x - 1, y    ) + img(x, y    ) + img(x + 1, y    ) +
-                      img(x - 1, y + 1) + img(x, y + 1) + img(x + 1, y + 1));
-
-        blur.compute_root().gpu_tile(x, y, xo, yo, xi, yi, 8, 8);
-
-        // The wrapper Func created by ImageParam::in has pure vars
-        // named _0, _1, etc. Schedule it per tile of "blur", and map
-        // _0 and _1 to gpu threads.
-        img.in(blur).compute_at(blur, xo).gpu_threads(_0, _1);
-
-        // Without Func::in, computing an 8x8 tile of blur would do
-        // 8*8*9 loads to global memory. With Func::in, the wrapper
-        // does 10*10 loads to global memory up front, and then blur
-        // does 8*8*9 loads to shared/local memory.
-
-        // Select an appropriate GPU API, as we did in lesson 12
-        Target target = get_host_target();
-        if (target.os == Target::OSX) {
-            target.set_feature(Target::Metal);
-        } else {
-            target.set_feature(Target::OpenCL);
-        }
-
-        // Create an interesting input image to use.
-        Buffer<int> input(258, 258);
-        input.set_min(-1, -1);
-        for (int y = input.top(); y <= input.bottom(); y++) {
-            for (int x = input.left(); x <= input.right(); x++) {
-                input(x, y) = x * 17 + y % 4;
-            }
-        }
-
-        img.set(input);
-        blur.compile_jit(target);
-        Buffer<int> out = blur.realize(256, 256);
-
-        // Check the output is what we expected
-        for (int y = out.top(); y <= out.bottom(); y++) {
-            for (int x = out.left(); x <= out.right(); x++) {
-                int val = out(x, y);
-                int expected = (input(x - 1, y - 1) + input(x, y - 1) + input(x + 1, y - 1) +
-                                input(x - 1, y    ) + input(x, y    ) + input(x + 1, y    ) +
-                                input(x - 1, y + 1) + input(x, y + 1) + input(x + 1, y + 1));
-                if (val != expected) {
-                    printf("out(%d, %d) = %d instead of %d\n",
-                           x, y, val, expected);
-                    return -1;
-                }
-            }
-        }
-    }
+    // {
+    //     // ImageParam::in behaves the same way as Func::in, and you
+    //     // can use it to stage loads in similar ways. Instead of
+    //     // transposing again, we'll use ImageParam::in to stage tiles
+    //     // of an input image into GPU shared memory, effectively using
+    //     // shared/local memory as an explicitly-managed cache.
+    //
+    //     ImageParam img(Int(32), 2);
+    //
+    //     // We will compute a small blur of the input.
+    //     Func blur("blur");
+    //     blur(x, y) = (img(x - 1, y - 1) + img(x, y - 1) + img(x + 1, y - 1) +
+    //                   img(x - 1, y    ) + img(x, y    ) + img(x + 1, y    ) +
+    //                   img(x - 1, y + 1) + img(x, y + 1) + img(x + 1, y + 1));
+    //
+    //     blur.compute_root().gpu_tile(x, y, xo, yo, xi, yi, 8, 8);
+    //
+    //     // The wrapper Func created by ImageParam::in has pure vars
+    //     // named _0, _1, etc. Schedule it per tile of "blur", and map
+    //     // _0 and _1 to gpu threads.
+    //     img.in(blur).compute_at(blur, xo).gpu_threads(_0, _1);
+    //
+    //     // Without Func::in, computing an 8x8 tile of blur would do
+    //     // 8*8*9 loads to global memory. With Func::in, the wrapper
+    //     // does 10*10 loads to global memory up front, and then blur
+    //     // does 8*8*9 loads to shared/local memory.
+    //
+    //     // Select an appropriate GPU API, as we did in lesson 12
+    //     Target target = get_host_target();
+    //     if (target.os == Target::OSX) {
+    //         target.set_feature(Target::Metal);
+    //     } else {
+    //         target.set_feature(Target::OpenCL);
+    //     }
+    //
+    //     // Create an interesting input image to use.
+    //     Buffer<int> input(258, 258);
+    //     input.set_min(-1, -1);
+    //     for (int y = input.top(); y <= input.bottom(); y++) {
+    //         for (int x = input.left(); x <= input.right(); x++) {
+    //             input(x, y) = x * 17 + y % 4;
+    //         }
+    //     }
+    //
+    //     img.set(input);
+    //     blur.compile_jit(target);
+    //     Buffer<int> out = blur.realize(256, 256);
+    //
+    //     // Check the output is what we expected
+    //     for (int y = out.top(); y <= out.bottom(); y++) {
+    //         for (int x = out.left(); x <= out.right(); x++) {
+    //             int val = out(x, y);
+    //             int expected = (input(x - 1, y - 1) + input(x, y - 1) + input(x + 1, y - 1) +
+    //                             input(x - 1, y    ) + input(x, y    ) + input(x + 1, y    ) +
+    //                             input(x - 1, y + 1) + input(x, y + 1) + input(x + 1, y + 1));
+    //             if (val != expected) {
+    //                 printf("out(%d, %d) = %d instead of %d\n",
+    //                        x, y, val, expected);
+    //                 return -1;
+    //             }
+    //         }
+    //     }
+    // }
 
     {
         // Func::in can also be used to group multiple stages of a
