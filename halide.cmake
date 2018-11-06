@@ -122,6 +122,7 @@ function(halide_library_from_generator BASENAME)
   set(multiValueArgs EXTRA_OUTPUTS FILTER_DEPS GENERATOR_ARGS HALIDE_TARGET_FEATURES INCLUDES)
   cmake_parse_arguments(args "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
+  # message("halide_library_from_generator --------------------------args_FILTER_DEPS is ------------------" ${args_FILTER_DEPS})
   if ("${args_GENERATOR}" STREQUAL "")
     set(args_GENERATOR "${BASENAME}.generator")
   endif()
@@ -257,6 +258,7 @@ function(halide_library_from_generator BASENAME)
   add_library("${BASENAME}_cc" STATIC "${GENFILES_DIR}/${BASENAME}.generated.cpp")
   # Needs _lib_gen as well, to get the .h file
   add_dependencies("${BASENAME}_cc" "${BASENAME}_lib_gen" "${BASENAME}_cc_gen")
+  # message("--------------------------args_FILTER_DEPS is ------------------" ${args_FILTER_DEPS})
   target_link_libraries("${BASENAME}_cc" PRIVATE ${args_FILTER_DEPS})
   target_include_directories("${BASENAME}_cc" PRIVATE "${HALIDE_INCLUDE_DIR}")
   target_include_directories("${BASENAME}_cc" PUBLIC "${GENFILES_DIR}" ${args_INCLUDES})
@@ -290,14 +292,18 @@ function(halide_library NAME)
     message(FATAL_ERROR "halide_library('${BASENAME}') doesn't take a GENERATOR argument. Did you mean to use GENERATOR_NAME, or the halide_library_from_generator() rule?")
   endif()
 
+
+  # message("halide_library --------------------------args_FILTER_DEPS is ------------------" ${args_FILTER_DEPS})
   halide_generator("${NAME}.generator"
                    SRCS ${args_SRCS}
                    DEPS ${args_GENERATOR_DEPS}
                    INCLUDES ${args_INCLUDES}
                    GENERATOR_NAME ${args_GENERATOR_NAME})
 
+  # message("---------going now into halide_library_from_generator ")
+
   halide_library_from_generator("${NAME}"
-                   DEPS ${args_FILTER_DEPS}
+                   FILTER_DEPS ${args_FILTER_DEPS}
                    INCLUDES ${args_INCLUDES}
                    GENERATOR "${NAME}.generator"
                    FUNCTION_NAME ${args_FUNCTION_NAME}
